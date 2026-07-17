@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sudoku Solver — Recursion & Backtracking</title>
+<style>
+  :root{
+    --paper:#EFEEE6;
+    --grid-line:#2E4457;
+    --grid-line-soft:#B9C4CC;
+    --ink:#1C2B39;
+    --given:#1C2B39;
+    --solved:#2F6B4F;
+    --conflict:#B0392E;
+    --stamp:#2F6B4F;
+    --ruler:#6C7C89;
+    --card:#F7F6F0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family: Georgia, 'Times New Roman', serif;
+    background:
+      linear-gradient(var(--grid-line-soft) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--grid-line-soft) 1px, transparent 1px) 0 0/28px 28px,
+      var(--paper);
+    color:var(--ink);
+    display:flex;
+    justify-content:center;
+    padding:36px 16px 60px;
+  }
+  .sheet{
+    width:100%;
+    max-width:560px;
+  }
+  .letterhead{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    border-bottom:2px solid var(--grid-line);
+    padding-bottom:10px;
+    margin-bottom:22px;
+  }
+  .letterhead h1{
+    font-size:26px;
+    font-weight:400;
+    letter-spacing:0.5px;
+    margin:0;
+  }
+  .letterhead .sub{
+    font-family: 'Courier New', monospace;
+    font-size:11px;
+    color:var(--ruler);
+    text-align:right;
+    line-height:1.5;
+  }
+  .board-wrap{
+    position:relative;
+    background:var(--card);
+    border:1px solid var(--grid-line-soft);
+    padding:22px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+  }
+  .col-ruler{
+    display:grid;
+    grid-template-columns:repeat(9, 1fr);
+    width:100%;
+    max-width:414px;
+    font-family:'Courier New', monospace;
+    font-size:11px;
+    color:var(--ruler);
+    text-align:center;
+    padding-left:0;
+  }
+  .board-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    width:100%;
+    max-width:414px;
+  }
+  .row-label{
+    font-family:'Courier New', monospace;
+    font-size:11px;
+    color:var(--ruler);
+    width:12px;
+    text-align:right;
+  }
+  #grid{
+    display:grid;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    width:100%;
+    max-width:414px;
+    aspect-ratio:1/1;
+    background:var(--ink);
+    gap:1px;
+    border:2px solid var(--ink);
+  }
+  .cell{
+    background:var(--card);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+  }
+  .cell input{
+    width:100%;
+    height:100%;
+    border:none;
+    background:transparent;
+    text-align:center;
+    font-family: Georgia, serif;
+    font-size:18px;
+    color:var(--given);
+    outline:none;
+    -moz-appearance:textfield;
+  }
+  .cell input.solved-digit{ color:var(--solved); }
+  .cell input.conflict{ color:var(--conflict); background:rgba(176,57,46,0.08); }
+  .cell input::-webkit-outer-spin-button,
+  .cell input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .cell:nth-child(3n){ border-right:2px solid var(--ink); }
+  .cell:nth-child(9n){ border-right:none; }
+  .thick-bottom{ border-bottom:2px solid var(--ink); }
+
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    justify-content:center;
+    width:100%;
+    max-width:414px;
+  }
+  button{
+    font-family: 'Courier New', monospace;
+    font-size:12px;
+    letter-spacing:0.5px;
+    text-transform:uppercase;
+    padding:9px 14px;
+    background:transparent;
+    border:1px solid var(--grid-line);
+    color:var(--ink);
+    cursor:pointer;
+  }
+  button:hover{ background:var(--grid-line); color:var(--card); }
+  button.primary{ background:var(--stamp); color:var(--card); border-color:var(--stamp); }
+  button.primary:hover{ background:var(--ink); border-color:var(--ink); }
+
+  #status{
+    min-height:22px;
+    font-family:'Courier New', monospace;
+    font-size:12px;
+    text-align:center;
+    color:var(--ruler);
+  }
+  #status.ok{ color:var(--solved); }
+  #status.bad{ color:var(--conflict); }
+
+  .stamp-badge{
+    position:absolute;
+    top:16px;
+    right:16px;
+    border:2px solid var(--solved);
+    color:var(--solved);
+    font-family:'Courier New', monospace;
+    font-size:11px;
+    letter-spacing:2px;
+    padding:4px 8px;
+    transform:rotate(-8deg);
+    opacity:0;
+    transition:opacity 0.25s ease;
+    pointer-events:none;
+  }
+  .stamp-badge.show{ opacity:0.85; }
+
+  footer{
+    margin-top:18px;
+    font-family:'Courier New', monospace;
+    font-size:11px;
+    color:var(--ruler);
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="letterhead">
+    <h1>Sudoku solver</h1>
+    <div class="sub">recursion &amp; backtracking<br>9 × 9 grid</div>
+  </div>
+
+  <div class="board-wrap">
+    <div class="stamp-badge" id="stamp">solved</div>
+
+    <div class="col-ruler">
+      <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span><span>g</span><span>h</span><span>i</span>
+    </div>
+
+    <div id="grid"></div>
+
+    <div id="status"></div>
+
+    <div class="toolbar">
+      <button id="btnSample">Load example</button>
+      <button id="btnValidate">Validate</button>
+      <button id="btnClear">Clear</button>
+      <button class="primary" id="btnSolve">Solve</button>
+    </div>
+  </div>
+
+  <footer>enter digits 1&ndash;9 as givens, leave the rest blank</footer>
+</div>
+
+<script>
+const grid = document.getElementById('grid');
+const statusEl = document.getElementById('status');
+const stampEl = document.getElementById('stamp');
+const inputs = [];
+
+for (let r = 0; r < 9; r++) {
+  inputs.push([]);
+  for (let c = 0; c < 9; c++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    if (r === 2 || r === 5) cell.classList.add('thick-bottom');
+
+    const inp = document.createElement('input');
+    inp.maxLength = 1;
+    inp.inputMode = 'numeric';
+    inp.dataset.r = r;
+    inp.dataset.c = c;
+
+    inp.addEventListener('input', () => {
+      inp.value = inp.value.replace(/[^1-9]/g, '').slice(0, 1);
+      inp.classList.remove('solved-digit', 'conflict');
+      clearStatus();
+      hideStamp();
+    });
+
+    inp.addEventListener('keydown', (e) => {
+      const row = Number(inp.dataset.r), col = Number(inp.dataset.c);
+      let nr = row, nc = col;
+      if (e.key === 'ArrowRight') nc = Math.min(8, col + 1);
+      else if (e.key === 'ArrowLeft') nc = Math.max(0, col - 1);
+      else if (e.key === 'ArrowDown') nr = Math.min(8, row + 1);
+      else if (e.key === 'ArrowUp') nr = Math.max(0, row - 1);
+      else return;
+      e.preventDefault();
+      inputs[nr][nc].focus();
+    });
+
+    cell.appendChild(inp);
+    grid.appendChild(cell);
+    inputs[r].push(inp);
+  }
+}
+
+function readBoard() {
+  const b = [];
+  for (let r = 0; r < 9; r++) {
+    const row = [];
+    for (let c = 0; c < 9; c++) {
+      const v = inputs[r][c].value;
+      row.push(v ? Number(v) : 0);
+    }
+    b.push(row);
+  }
+  return b;
+}
+
+function writeBoard(board, solvedMask) {
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const v = board[r][c];
+      inputs[r][c].value = v ? v : '';
+      inputs[r][c].classList.toggle('solved-digit', !!(solvedMask && solvedMask[r][c]));
+    }
+  }
+}
+
+function clearStatus() {
+  statusEl.textContent = '';
+  statusEl.className = '';
+}
+
+function setStatus(msg, kind) {
+  statusEl.textContent = msg;
+  statusEl.className = kind || '';
+}
+
+function hideStamp() {
+  stampEl.classList.remove('show');
+}
+
+function showStamp() {
+  stampEl.classList.add('show');
+}
+
+function clearConflicts() {
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++)
+      inputs[r][c].classList.remove('conflict');
+}
+
+// Returns list of [r,c] cells that conflict with the placement rules,
+// given the fixed board (0 = empty).
+function findConflicts(board) {
+  const conflicts = new Set();
+
+  const mark = (cells) => {
+    const seen = {};
+    for (const [r, c] of cells) {
+      const v = board[r][c];
+      if (!v) continue;
+      if (seen[v]) {
+        conflicts.add(`${r},${c}`);
+        conflicts.add(`${seen[v][0]},${seen[v][1]}`);
+      } else {
+        seen[v] = [r, c];
+      }
+    }
+  };
+
+  for (let r = 0; r < 9; r++) {
+    mark(Array.from({length:9}, (_, c) => [r, c]));
+  }
+  for (let c = 0; c < 9; c++) {
+    mark(Array.from({length:9}, (_, r) => [r, c]));
+  }
+  for (let br = 0; br < 3; br++) {
+    for (let bc = 0; bc < 3; bc++) {
+      const cells = [];
+      for (let r = 0; r < 3; r++)
+        for (let c = 0; c < 3; c++)
+          cells.push([br*3+r, bc*3+c]);
+      mark(cells);
+    }
+  }
+
+  return Array.from(conflicts).map(s => s.split(',').map(Number));
+}
+
+// Core: recursive backtracking solver.
+// Tries digits 1-9 in each empty cell, recursing forward and
+// undoing (backtracking) the choice when it leads to a dead end.
+function isValidPlacement(board, row, col, val) {
+  for (let i = 0; i < 9; i++) {
+    if (board[row][i] === val) return false;
+    if (board[i][col] === val) return false;
+  }
+  const br = Math.floor(row / 3) * 3;
+  const bc = Math.floor(col / 3) * 3;
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 3; c++)
+      if (board[br+r][bc+c] === val) return false;
+  return true;
+}
+
+function findEmptyCell(board) {
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++)
+      if (board[r][c] === 0) return [r, c];
+  return null;
+}
+
+function solveBoard(board) {
+  const empty = findEmptyCell(board);
+  if (!empty) return true; // no empty cells left -> solved
+  const [row, col] = empty;
+
+  for (let val = 1; val <= 9; val++) {
+    if (isValidPlacement(board, row, col, val)) {
+      board[row][col] = val; // choose
+      if (solveBoard(board)) return true; // recurse
+      board[row][col] = 0; // backtrack
+    }
+  }
+  return false; // trigger backtracking in the caller
+}
+
+document.getElementById('btnValidate').addEventListener('click', () => {
+  clearConflicts();
+  hideStamp();
+  const board = readBoard();
+  const conflicts = findConflicts(board);
+  if (conflicts.length) {
+    for (const [r, c] of conflicts) inputs[r][c].classList.add('conflict');
+    setStatus(`Not valid — ${conflicts.length / 1} conflicting cell(s) marked`, 'bad');
+  } else {
+    setStatus('No conflicts found — puzzle is valid so far', 'ok');
+  }
+});
+
+document.getElementById('btnSolve').addEventListener('click', () => {
+  clearConflicts();
+  hideStamp();
+  const board = readBoard();
+
+  const conflicts = findConflicts(board);
+  if (conflicts.length) {
+    for (const [r, c] of conflicts) inputs[r][c].classList.add('conflict');
+    setStatus('Cannot solve — fix the conflicting cells first', 'bad');
+    return;
+  }
+
+  const original = board.map(row => row.slice());
+  const solved = board.map(row => row.slice());
+  const ok = solveBoard(solved);
+
+  if (!ok) {
+    setStatus('No solution exists for this puzzle', 'bad');
+    return;
+  }
+
+  const solvedMask = solved.map((row, r) => row.map((v, c) => original[r][c] === 0));
+  writeBoard(solved, solvedMask);
+  setStatus('Solved by recursive backtracking', 'ok');
+  showStamp();
+});
+
+document.getElementById('btnClear').addEventListener('click', () => {
+  writeBoard(Array.from({length:9}, () => Array(9).fill(0)));
+  clearConflicts();
+  clearStatus();
+  hideStamp();
+  inputs[0][0].focus();
+});
+
+const SAMPLE = [
+  [5,3,0, 0,7,0, 0,0,0],
+  [6,0,0, 1,9,5, 0,0,0],
+  [0,9,8, 0,0,0, 0,6,0],
+
+  [8,0,0, 0,6,0, 0,0,3],
+  [4,0,0, 8,0,3, 0,0,1],
+  [7,0,0, 0,2,0, 0,0,6],
+
+  [0,6,0, 0,0,0, 2,8,0],
+  [0,0,0, 4,1,9, 0,0,5],
+  [0,0,0, 0,8,0, 0,7,9]
+];
+
+document.getElementById('btnSample').addEventListener('click', () => {
+  writeBoard(SAMPLE);
+  clearConflicts();
+  clearStatus();
+  hideStamp();
+});
+
+writeBoard(SAMPLE);
+</script>
+</body>
+</html>
